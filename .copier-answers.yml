@@ -1,0 +1,20 @@
+# Changes here will be overwritten by Copier.
+_commit: 1.4.4
+_src_path: gh:mkdocstrings/handler-template
+author_email: kamilcukrowski@gmail.com
+author_fullname: Kamil Cukrowski
+author_username: kamilcuk
+copyright_date: '2025'
+copyright_holder: Kamil Cukrowski
+copyright_holder_email: kamilcukrowski@gmail.com
+copyright_license: ISC
+insiders: false
+language: sh
+project_description: A Sh handler for mkdocstrings.
+project_name: mkdocstrings-sh
+python_package_distribution_name: mkdocstrings-sh
+python_package_import_name: sh
+repository_name: mkdocstrings-sh
+repository_namespace: kamilcuk
+repository_provider: github.com
+
