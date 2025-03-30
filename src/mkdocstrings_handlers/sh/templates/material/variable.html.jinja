@@ -1,0 +1,3 @@
+{# file.html.jinja #}
+{% from "lib.jinja" import COMMON with context %}
+{{ COMMON(data, id=filename + "--" + data.name, name="$" + data.name, role="variable") }}

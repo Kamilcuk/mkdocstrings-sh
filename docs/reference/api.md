@@ -4,4 +4,6 @@ hide:
 - navigation
 ---
 
-# ::: mkdocstrings_handlers.sh
+::: mkdocstrings_handlers.sh
+    handler: python
+

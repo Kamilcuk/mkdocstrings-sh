@@ -14,6 +14,11 @@ validation:
   unrecognized_links: warn
 
 nav:
+- Examples:
+  - script: examples/script.md
+  - examples/readme.md
+  - examples/single.md
+  - examples/L_lib.md
 - Home:
   - Overview: index.md
   - Changelog: changelog.md
@@ -116,6 +121,7 @@ plugins:
 - section-index
 - coverage
 - mkdocstrings:
+    default_handler: sh
     handlers:
       python:
         inventories:

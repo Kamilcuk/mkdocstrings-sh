@@ -1,0 +1,126 @@
+{# lib.jinja #}
+
+{% macro HANDLE_OPTION(what, desc) %}
+  {% if what %}
+    <p>
+    {% if what | length == 1 %}
+      <strong>
+        {# Remove plural form trailing 's' if present #}
+        {% if desc[-1] == "s" %}{{ desc[:-1] }}{% else %}{{ desc }}{% endif %}
+        :
+      </strong>
+      {% for i in what %}
+        {% if i.code %}
+          {# handle @arg and @option #}
+          <strong><code>{{ i.code }}</code></strong>
+          {{ i.description | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+        {% else %}
+          {{ i | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <strong>{{ desc }}:</strong>
+      <ul>
+        {% for i in what %}
+          <li>
+            {% if i.code %}
+              {# handle @arg and @option #}
+              <strong><code>{{ i.code }}</code></strong>
+              {{ i.description | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+            {% else %}
+              {{ i | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    </p>
+  {% endif %}
+{% endmacro %}
+
+{% macro HANDLE_FOR_POINTS(what, desc) %}
+  {{ HANDLE_OPTION(what, desc) }}
+{% endmacro %}
+
+{% macro HANDLE_FOR(what, desc) %}
+  {% if what %}
+    {% if desc %}
+      <strong>{{ desc }}:</strong>
+    {% endif %}
+    {% for i in what %}
+      {{ i | convert_markdown(heading_level, html_id=filename) }}
+    {% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{% macro HANDLE_ONELINE(what, desc) %}
+  {% if what %}
+    <p>
+    {% if desc %}
+      <strong>{{ desc }}:</strong>
+    {% endif %}
+    {% for i in what %}
+      {{ i }}
+    {% endfor %}
+    </p>
+  {% endif %}
+{% endmacro %}
+
+{% macro COMMON(data, id, name, role) %}
+  {% filter heading(heading_level, id=id, role=role) %}
+    <code class="doc-symbol doc-symbol-heading doc-symbol-sh-{{ data["type"] }}"></code>
+    {% if data["type"] in ["variable", "function"] %}
+      <code>{{ name }}</code>
+    {% else %}
+      {{ name }}
+    {% endif %}
+  {% endfilter %}
+
+  {{ HANDLE_FOR(data.description) }}
+
+  {% if data.example %}
+    {% for i in data.example %}
+      <strong>Example:</strong></br>
+      <pre><code>{{ i }}</code></pre>
+    {% endfor %}
+  {% endif %}
+
+  {{ HANDLE_ONELINE(data.author, "Authors") }}
+  {{ HANDLE_ONELINE(data.maintainer, "Maintainers") }}
+  {{ HANDLE_ONELINE(data["SPDX-License-Identifier"], "SPDX-License-Identifier") }}
+  {{ HANDLE_ONELINE(data.license, "License") }}
+
+  {{ HANDLE_OPTION(data.option, "Options") }}
+  {{ HANDLE_OPTION(data.arg, "Arguments") }}
+
+  {% if data.noargs %}
+    <p>
+    <strong>Arguments:</strong>
+    Takes no arguments
+    </p>
+  {% endif %}
+
+  {{ HANDLE_FOR_POINTS(data.set, "Sets variables") }}
+  {{ HANDLE_FOR_POINTS(data.env, "Uses environment variables") }}
+
+  {% if data.shellcheck %}
+    <p>
+    <strong>Shellcheck disable:</strong>
+    {% for i in data.shellcheck %}
+      <a href="https://www.shellcheck.net/wiki/{{i}}">{{i}}</a>
+    {% endfor %}
+    </p>
+  {% endif %}
+
+  {{ HANDLE_FOR_POINTS(data.require, "Requires") }}
+  {{ HANDLE_FOR_POINTS(data.return, "Returns") }}
+  {{ HANDLE_FOR_POINTS(data.exit, "Exits") }}
+  {{ HANDLE_FOR_POINTS(data.exitcode, "Exits") }}
+  {{ HANDLE_FOR_POINTS(data.see, "See") }}
+
+  {% for i in data.data %}
+    {% with data = i, heading_level = heading_level + 1 %}
+      {% include i.type + ".html.jinja" with context %}
+    {% endwith %}
+  {% endfor %}
+{% endmacro %}

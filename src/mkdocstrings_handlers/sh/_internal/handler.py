@@ -9,6 +9,7 @@ from mkdocs.exceptions import PluginError
 from mkdocstrings import BaseHandler, CollectionError, CollectorItem, get_logger
 
 from mkdocstrings_handlers.sh._internal.config import ShConfig, ShOptions
+from mkdocstrings_handlers.sh import shdocgen
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, MutableMapping
@@ -65,7 +66,10 @@ class ShHandler(BaseHandler):
         Returns:
             The combined options.
         """
-        extra = {**self.global_options.get("extra", {}), **local_options.get("extra", {})}
+        extra = {
+            **self.global_options.get("extra", {}),
+            **local_options.get("extra", {}),
+        }
         options = {**self.global_options, **local_options, "extra": extra}
         try:
             return ShOptions.from_data(**options)
@@ -87,7 +91,25 @@ class ShHandler(BaseHandler):
         #
         # You might want to store collected data in `self._collected`, for easier retrieval later,
         # typically when mkdocstrings will try to get aliases for an identifier through your `get_aliases` method.
-        raise CollectionError("Implement me!")
+        file = identifier.split(" ", 1)[0]
+        script_path = self.base_dir / file
+        try:
+            root = shdocgen.parse_script(script_path)
+        except FileNotFoundError as error:
+            raise CollectionError(
+                f"Could not find script {repr(script_path)}"
+            ) from error
+        name = " ".join(identifier.split(" ", 1)[1:]) if " " in identifier else None
+        if name:
+            ret = shdocgen.find_name(root, name)
+            if not ret:
+                raise CollectionError(
+                    f"Could not find symbol {repr(name)} in script {repr(script_path)}"
+                )
+            ret["file"] = root["file"]
+        else:
+            ret = root
+        return ret
 
     def render(self, data: CollectorItem, options: ShOptions) -> str:
         """Render a template using provided data and configuration options."""
@@ -96,13 +118,13 @@ class ShHandler(BaseHandler):
         # It contains both the global and local options, combined together.
 
         # You might want to get the template based on the data type.
-        template = self.env.get_template("data.html.jinja")
+        template = self.env.get_template(f"{data['type']}.html.jinja")
         # All the following variables will be available in the Jinja templates.
         return template.render(
             config=options,
-            data=data,  # You might want to rename `data` into something more specific.
+            data=data,
+            filename=Path(data["file"]).name,
             heading_level=options.heading_level,
-            root=True,
         )
 
     def get_aliases(self, identifier: str) -> tuple[str, ...]:

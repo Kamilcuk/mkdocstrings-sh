@@ -1,0 +1,1 @@
+src/mkdocstrings_handlers/sh/shdocgen.py
