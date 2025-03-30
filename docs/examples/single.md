@@ -1,5 +1,7 @@
 # Example with referencing single entity
 
+See also "duplicates".
+
 ## Single variable:
 
 ```

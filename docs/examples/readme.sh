@@ -3,8 +3,8 @@
 # @description this is the description
 # @license this is the license
 # SPDX-License-Identifier: GPL-2.0
-# @author Kamil Cukrowski
-# @maintainer Kamil Cukrowski
+# @author Kamil Cukrowski <kamilcukrowski at gmail.com>
+# @maintainer Kamil Cukrowski <kamilcukrowski@gmail.com>
 
 # some variable
 VARIABLE=1

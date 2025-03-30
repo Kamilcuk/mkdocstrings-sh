@@ -1,67 +1,44 @@
 {# lib.jinja #}
 
-{% macro HANDLE_OPTION(what, desc) %}
+{% macro HANDLE_FOR_TAG_ELEM(i, mode) %}
+  {% if i.code %}
+    {# handle @arg and @option #}
+    <strong><code>{{ i.code }}</code></strong>
+    {{ i.description | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+  {% elif mode == "raw" %}
+    {{ i }}
+  {% elif mode == "code" %}
+    <pre><code>{{ i }}</code></pre>
+  {% else %}
+    {{ i | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
+  {% endif %}
+{% endmacro %}
+
+{% macro HANDLE_FOR_TAG(what, desc="", mode="", table=1) %}
   {% if what %}
     <p>
     {% if what | length == 1 %}
-      <strong>
-        {# Remove plural form trailing 's' if present #}
-        {% if desc[-1] == "s" %}{{ desc[:-1] }}{% else %}{{ desc }}{% endif %}
-        :
-      </strong>
+      {% if desc %}
+        <strong>
+          {# Remove plural form trailing 's' if present #}
+          {% if desc[-1] == "s" %}{{ desc[:-1] }}{% else %}{{ desc }}{% endif %}:
+        </strong>
+      {% endif %}
       {% for i in what %}
-        {% if i.code %}
-          {# handle @arg and @option #}
-          <strong><code>{{ i.code }}</code></strong>
-          {{ i.description | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
-        {% else %}
-          {{ i | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
-        {% endif %}
+        {{ HANDLE_FOR_TAG_ELEM(i, mode) }}
       {% endfor %}
     {% else %}
-      <strong>{{ desc }}:</strong>
-      <ul>
+      {% if desc %}
+        <strong>{{ desc }}:</strong>
+      {% endif %}
+      {% if table %}<ul>{% endif %}
         {% for i in what %}
-          <li>
-            {% if i.code %}
-              {# handle @arg and @option #}
-              <strong><code>{{ i.code }}</code></strong>
-              {{ i.description | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
-            {% else %}
-              {{ i | convert_markdown(heading_level + 1, html_id=filename, strip_paragraph=True) }}
-            {% endif %}
-          </li>
+          {% if table %}<li>{% endif %}
+            {{ HANDLE_FOR_TAG_ELEM(i, mode) }}
+          {% if table %}</li>{% endif %}
         {% endfor %}
-      </ul>
+      {% if table %}</ul>{% endif %}
     {% endif %}
-    </p>
-  {% endif %}
-{% endmacro %}
-
-{% macro HANDLE_FOR_POINTS(what, desc) %}
-  {{ HANDLE_OPTION(what, desc) }}
-{% endmacro %}
-
-{% macro HANDLE_FOR(what, desc) %}
-  {% if what %}
-    {% if desc %}
-      <strong>{{ desc }}:</strong>
-    {% endif %}
-    {% for i in what %}
-      {{ i | convert_markdown(heading_level, html_id=filename) }}
-    {% endfor %}
-  {% endif %}
-{% endmacro %}
-
-{% macro HANDLE_ONELINE(what, desc) %}
-  {% if what %}
-    <p>
-    {% if desc %}
-      <strong>{{ desc }}:</strong>
-    {% endif %}
-    {% for i in what %}
-      {{ i }}
-    {% endfor %}
     </p>
   {% endif %}
 {% endmacro %}
@@ -76,22 +53,35 @@
     {% endif %}
   {% endfilter %}
 
-  {{ HANDLE_FOR(data.description) }}
-
-  {% if data.example %}
-    {% for i in data.example %}
-      <strong>Example:</strong></br>
-      <pre><code>{{ i }}</code></pre>
+  {{ HANDLE_FOR_TAG(data.description, table=0) }}
+  {% for what in "note abstract info tip success question warning failure danger buf quote".split() %}
+    {% for i in data[what] %}
+      {{ "!!! %s\n%s" | format(what, (i | indent(first=1))) | convert_markdown(heading_level + 1, html_id=filename) }}
     {% endfor %}
-  {% endif %}
-
-  {{ HANDLE_ONELINE(data.author, "Authors") }}
-  {{ HANDLE_ONELINE(data.maintainer, "Maintainers") }}
-  {{ HANDLE_ONELINE(data["SPDX-License-Identifier"], "SPDX-License-Identifier") }}
-  {{ HANDLE_ONELINE(data.license, "License") }}
-
-  {{ HANDLE_OPTION(data.option, "Options") }}
-  {{ HANDLE_OPTION(data.arg, "Arguments") }}
+  {% endfor %}
+  {% for what in "example".split() %}
+    {% for i in data[what] %}
+      {% if i.splitlines()[0] %}
+        {% set desc = " \"" ~ i.splitlines()[0] ~ "\"" %} 
+      {% else %}
+        {% set desc = "" %}
+      {% endif %}
+      {{
+        "!!! %s%s\n%s"
+        | format(what, desc, (i.splitlines()[1:]
+        | join("\n")
+        | indent(8, first=1)))
+        | convert_markdown(heading_level + 1, html_id=filename)
+      }}
+    {% endfor %}
+  {% endfor %}
+  {# HANDLE_FOR_TAG(data.example, "Examples", mode="code") #}
+  {{ HANDLE_FOR_TAG(data.author, "Authors", mode="raw") }}
+  {{ HANDLE_FOR_TAG(data.maintainer, "Maintainers", mode="raw") }}
+  {{ HANDLE_FOR_TAG(data["SPDX-License-Identifier"], "SPDX-License-Identifier", mode="raw") }}
+  {{ HANDLE_FOR_TAG(data.license, "Licenses", mode="code") }}
+  {{ HANDLE_FOR_TAG(data.option, "Options") }}
+  {{ HANDLE_FOR_TAG(data.arg, "Arguments") }}
 
   {% if data.noargs %}
     <p>
@@ -100,27 +90,29 @@
     </p>
   {% endif %}
 
-  {{ HANDLE_FOR_POINTS(data.set, "Sets variables") }}
-  {{ HANDLE_FOR_POINTS(data.env, "Uses environment variables") }}
+  {{ HANDLE_FOR_TAG(data.set, "Sets variables") }}
+  {{ HANDLE_FOR_TAG(data.env, "Uses environment variables") }}
 
   {% if data.shellcheck %}
     <p>
-    <strong>Shellcheck disable:</strong>
-    {% for i in data.shellcheck %}
-      <a href="https://www.shellcheck.net/wiki/{{i}}">{{i}}</a>
-    {% endfor %}
+      <strong>Shellcheck disable=</strong>
+      {% for i in data.shellcheck %}
+        <a href="https://www.shellcheck.net/wiki/{{i}}">{{i}}</a>
+      {% endfor %}
     </p>
   {% endif %}
 
-  {{ HANDLE_FOR_POINTS(data.require, "Requires") }}
-  {{ HANDLE_FOR_POINTS(data.return, "Returns") }}
-  {{ HANDLE_FOR_POINTS(data.exit, "Exits") }}
-  {{ HANDLE_FOR_POINTS(data.exitcode, "Exits") }}
-  {{ HANDLE_FOR_POINTS(data.see, "See") }}
+  {{ HANDLE_FOR_TAG(data.require, "Requires") }}
+  {{ HANDLE_FOR_TAG(data.return, "Returns") }}
+  {{ HANDLE_FOR_TAG(data.exit, "Exits") }}
+  {{ HANDLE_FOR_TAG(data.exitcode, "Exits") }}
+  {{ HANDLE_FOR_TAG(data.see, "See") }}
 
+  {# nest #}
   {% for i in data.data %}
     {% with data = i, heading_level = heading_level + 1 %}
       {% include i.type + ".html.jinja" with context %}
     {% endwith %}
   {% endfor %}
+
 {% endmacro %}

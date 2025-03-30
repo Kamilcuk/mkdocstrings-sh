@@ -96,15 +96,13 @@ class ShHandler(BaseHandler):
         try:
             root = shdocgen.parse_script(script_path)
         except FileNotFoundError as error:
-            raise CollectionError(
-                f"Could not find script {repr(script_path)}"
-            ) from error
+            raise CollectionError(f"Could not find script {script_path}") from error
         name = " ".join(identifier.split(" ", 1)[1:]) if " " in identifier else None
         if name:
             ret = shdocgen.find_name(root, name)
             if not ret:
                 raise CollectionError(
-                    f"Could not find symbol {repr(name)} in script {repr(script_path)}"
+                    f"Could not find symbol {repr(name)} in script {script_path}"
                 )
             ret["file"] = root["file"]
         else:

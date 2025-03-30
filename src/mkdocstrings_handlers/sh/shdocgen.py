@@ -16,6 +16,8 @@ COMMON_TAGS: Set[str] = set(
     name
     file
     lineno
+    warning
+    notice
     """.split()
 )
 KNOWN_TAGS: Dict[str, Set[str]] = dict(
@@ -51,7 +53,6 @@ KNOWN_TAGS: Dict[str, Set[str]] = dict(
         env
         set
         exitcode
-        warning
         noargs
         stdout
         stdin
@@ -74,8 +75,12 @@ def _convert_arg_option(cur):
     # Convert optinos and arg into code part and description part.
     for key in ["option", "arg"]:
         for idx, elem in enumerate(cur.get(key, [])):
+            # -l --longarg <var> Description
+            # --longarg=<var> Description
+            # [$1] description
+            # $1 description
             mopt = re.match(
-                r"^\s*(--?\w+\s*(<\w+>)?\s+|\[?\$\S+)\s*(.*)$",
+                r"^\s*(?P<code>(--?\w+(=|\s*)(<\w+>)?\s+)+|\[?\$\S+)\s*(?P<description>.*)$",
                 elem,
             )
             if not mopt:
@@ -83,8 +88,8 @@ def _convert_arg_option(cur):
                 cur[key][idx] = dict(code="", description=cur[key][idx])
             else:
                 cur[key][idx] = dict(
-                    code=mopt.group(1).strip(),
-                    description=mopt.group(3) or "",
+                    code=mopt.group("code").strip(),
+                    description=mopt.group("description") or "",
                 )
 
 
@@ -138,26 +143,30 @@ def parse_stream(
     root: dict = dict(type="file", file=file, data=[])
     parents: List[dict] = [root]  # Section nesting.
     cur: dict = {}  # Current element.
-    last_tag: Optional[str] = None  # Last seen @tag
+    cur_tag: Optional[str] = None  # Last seen @tag
     for lineno, line in enumerate(stream):
         # If the line does not start with #, it is the end.
         if line.startswith("#"):
             # If the line looks like a beginning of a tag.
             m = re.search(r"^#\s@([a-z]+)\s*(.*)", line)
             if m:
-                last_tag = m[1]
-                cur.setdefault(last_tag, []).append(m[2] + "\n")
+                cur_tag = m[1]
+                cur.setdefault(cur_tag, []).append(m[2] + "\n")
                 # @section and @type implies the type
-                if last_tag in ["section", "file", "endsection"]:
-                    cur["type"] = last_tag
+                if cur_tag in ["section", "file", "endsection"]:
+                    cur["type"] = cur_tag
                     # File has no newline on the end, cleanup.
-                    if last_tag == "file":
-                        cur[last_tag] = m[2]
-                    else:
-                        # Don't keep @section or @endsection around
-                        del cur[last_tag]
+                    if cur_tag == "file" and m[2]:
+                        # Overwrite file name if not empty.
+                        cur["file"] = m[2]
+                    if cur_tag in ["section", "endsection"]:
+                        # Clean up desription, it comes after.
+                        cur["description"] = []
+                        # Don't keep @section or @endsection around.
+                        del cur[cur_tag]
                         # Extract name of @section <this is name>
                         cur["name"] = m[2]
+                    cur_tag = None
                 continue
             # Detect shellcheck lines.
             m = re.search(r"^#\s+shellcheck\s+disable=(.*)", line)
@@ -166,50 +175,57 @@ def parse_stream(
                     "SC" + x if x.isdigit() else x
                     for x in m.group(1).strip().split(",")
                 )
-                last_tag = None
+                cur_tag = None
                 continue
             # Detect SPDX lines.
             m = re.search(r"#\s+SPDX-License-Identifier:\s+(.*)", line)
             if m:
                 cur.setdefault("SPDX-License-Identifier", []).append(m.group(1))
-                last_tag = None
+                cur_tag = None
                 continue
             # If all stars align, append the string to the last tag element seen.
-            if cur and last_tag is not None and len(cur.get(last_tag, [])):
-                cur[last_tag][-1] += re.sub(r"#\s?", "", line)
+            line = re.sub(r"#\s?", "", line)
+            if cur and cur_tag is not None and len(cur.get(cur_tag, [])):
+                cur[cur_tag][-1] += line
                 continue
+            # Append free lines to description.
+            cur.setdefault("description", []).insert(
+                0, (cur["description"][0] if cur.get("description") else "") + line
+            )
             continue
         else:
             # Line does not start with #
             # Try to detect the type depending on the next line after description.
             # I.e. is it a variable or a function?
             if (cur and "type" not in cur) or includeregex:
-                if "type" not in cur:
-                    # Check if the line is a function declaration.
-                    #   function name() {
-                    #   function name {
-                    #   name() {
-                    m = re.search(
-                        r"^function\s+(\w+)|^([a-zA-Z@_]\w+)\s*[(][)]\s+", line
-                    )
+                regexes = [
+                    # function name()
+                    # function name
+                    r"^function\s+(?P<function>[a-zA-Z@_]\w+)",
+                    # name()
+                    r"^(?P<function>[a-zA-Z@_]\w+)\s*[(][)]",
+                    # : "${variable:=value}"
+                    # : "${variable=value}"
+                    # : ${variable:=value}
+                    # : ${variable=value}
+                    r'^:\s+"?\${(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*):?=',
+                    # variable=
+                    # declare variable=
+                    # declare -a variable=
+                    # readonly variable=
+                    r"^(|readonly\s+|declare(\s+-\w+)*\s+)(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*)=",
+                ]
+                for rgx in regexes:
+                    m = re.search(rgx, line)
                     if m:
-                        name = m.group(1) or m.group(2)
+                        type = (
+                            "function" if m.groupdict().get("function") else "variable"
+                        )
+                        name = m[type]
                         _convert_arg_option(cur)
                         if cur or (includeregex and re.search(includeregex, name)):
-                            cur.update(dict(type="function", name=name))
-                if "type" not in cur:
-                    # Check if the line is a variable declation or variable default assignment.
-                    #   variable=value
-                    #   : "${variable:=default}"
-                    #   : ${variable=default}
-                    m = re.search(
-                        r'^:\s+"?\${([a-zA-Z_][a-zA-Z_0-9]*):?=|^\s*([a-zA-Z_][a-zA-Z_0-9]*)=',
-                        line,
-                    )
-                    if m:
-                        name = m.group(1) or m.group(2)
-                        if cur or (includeregex and re.search(includeregex, name)):
-                            cur.update(dict(type="variable", name=name))
+                            cur.update(dict(type=type, name=name))
+                        break
             # If type was set, append to the result.
             if "type" in cur:
                 if cur["type"] == "file":
@@ -229,7 +245,7 @@ def parse_stream(
                 elif cur["type"] in ["function", "variable"]:
                     # It's a function or a variable - added to current section.
                     parents[-1]["data"].append(cur)
-            last_tag = None
+            cur_tag = None
             cur = {}
     # Some sanity.
     assert len(parents) != 0, f"Too many @endsection: {len(parents)}"
@@ -264,11 +280,11 @@ def parse_script(script: Union[Path, str]):
         return parse_stream(f, str(script))
 
 
-def find_name(root, name: str) -> Optional[dict]:
+def find_name(root, name: str, type: Optional[str] = None) -> Optional[dict]:
     obj = {}
 
     def findit(x):
-        if x["name"] == name:
+        if x["name"] == name and (not type or x["type"] == type):
             obj["elem"] = x
 
     traverse(root, findit)
@@ -283,9 +299,13 @@ def main():
     )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("script", type=Path)
+    parser.add_argument("name", nargs="?")
+    parser.add_argument("type", nargs="?")
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG)
     data = parse_script(args.script)
+    if args.name:
+        data = find_name(data, args.name, args.type)
     if args.json:
         print(json.dumps(data))
     else:

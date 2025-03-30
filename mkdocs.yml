@@ -14,29 +14,32 @@ validation:
   unrecognized_links: warn
 
 nav:
-- Examples:
-  - script: examples/script.md
-  - examples/readme.md
-  - examples/single.md
-  - examples/L_lib.md
 - Home:
   - Overview: index.md
   - Changelog: changelog.md
   - Credits: credits.md
   - License: license.md
-- Usage:
-  - usage/index.md
-  - Configuration:
-    - usage/configuration/index.md
-    - General: usage/configuration/general.md
-    - Headings: usage/configuration/headings.md
-  - Customization: usage/customization.md
-- API reference: reference/api.md
-- Development:
-  - Contributing: contributing.md
-  - Code of Conduct: code_of_conduct.md
-  - Coverage report: coverage.md
-  - mkdocstrings: https://mkdocstrings.github.io/
+# - Usage:
+#   - usage/index.md
+#   - Configuration:
+#     - usage/configuration/index.md
+#     - General: usage/configuration/general.md
+#     - Headings: usage/configuration/headings.md
+#   - Customization: usage/customization.md
+# - API reference: reference/api.md
+# - Development:
+#   - Contributing: contributing.md
+#   - Code of Conduct: code_of_conduct.md
+#   - Coverage report: coverage.md
+#   - mkdocstrings: https://mkdocstrings.github.io/
+- Examples:
+  - reference: examples/reference.md
+  - examples/script.md
+  - examples/readme.md
+  - examples/single.md
+  - examples/duplicates.md
+  - examples/all.md
+  - examples/L_lib.md
 
 theme:
   name: material
