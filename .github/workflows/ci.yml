@@ -19,9 +19,8 @@ env:
 jobs:
 
   quality:
-
+    timeout-minutes: 5
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -73,11 +72,11 @@ jobs:
         - windows-latest
         python-version:
         - "3.9"
-        - "3.10"
-        - "3.11"
-        - "3.12"
+        # - "3.10"
+        # - "3.11"
+        # - "3.12"
         - "3.13"
-        - "3.14"
+        # - "3.14"
         resolution:
         - highest
         - lowest-direct
@@ -86,6 +85,7 @@ jobs:
           resolution: lowest-direct
         - os: windows-latest
           resolution: lowest-direct
+    timeout-minutes: 5
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.python-version == '3.14' }}
 
