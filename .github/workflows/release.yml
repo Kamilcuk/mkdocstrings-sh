@@ -26,6 +26,7 @@ jobs:
     - name: Create release
       uses: softprops/action-gh-release@v2
       with:
+        body_path: release-notes.md
 
    pypi-publish:
     name: Upload release to PyPI
@@ -36,7 +37,7 @@ jobs:
     timeout-minutes: 5
     environment:
       name: pypi
-      url: https://pypi.org/p/nomad-tools
+      url: https://pypi.org/p/mkdocstrings-sh
     permissions:
       id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
@@ -47,4 +48,4 @@ jobs:
       - name: build the package
         run: python -m build
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1       body_path: release-notes.md
+        uses: pypa/gh-action-pypi-publish@release/v1
