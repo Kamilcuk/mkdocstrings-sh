@@ -9,7 +9,7 @@ copyright: Copyright &copy; 2025 Kamil Cukrowski
 edit_uri: edit/main/docs/
 
 validation:
-  omitted_files: warn
+  # omitted_files: warn
   absolute_links: warn
   unrecognized_links: warn
 
