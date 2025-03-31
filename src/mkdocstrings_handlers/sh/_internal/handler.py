@@ -9,7 +9,7 @@ from mkdocs.exceptions import PluginError
 from mkdocstrings import BaseHandler, CollectionError, CollectorItem, get_logger
 
 from mkdocstrings_handlers.sh._internal.config import ShConfig, ShOptions
-from mkdocstrings_handlers.sh import shdocgen
+from mkdocstrings_handlers.sh._internal import shdocgen
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, MutableMapping
