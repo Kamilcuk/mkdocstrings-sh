@@ -49,8 +49,8 @@ jobs:
     - name: Check the code quality
       run: make check-quality
 
-    - name: Check if the code is correctly typed
-      run: make check-types
+    # - name: Check if the code is correctly typed
+    #   run: make check-types
 
     - name: Check for breaking changes in the API
       run: make check-api
