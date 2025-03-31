@@ -28,7 +28,7 @@ jobs:
       with:
         body_path: release-notes.md
 
-   pypi-publish:
+  pypi-publish:
     name: Upload release to PyPI
     needs:
       - release
