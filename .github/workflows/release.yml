@@ -1,9 +1,8 @@
 name: release
 
-on:
-  push:
-    permissions:
-      contents: write
+on: push
+permissions:
+  contents: write
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
