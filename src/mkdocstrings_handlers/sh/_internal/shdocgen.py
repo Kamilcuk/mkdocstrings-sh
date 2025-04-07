@@ -18,6 +18,7 @@ COMMON_TAGS: Set[str] = set(
     lineno
     warning
     notice
+    note
     """.split()
 )
 KNOWN_TAGS: Dict[str, Set[str]] = dict(
@@ -71,7 +72,7 @@ KNOWN_TAGS: Dict[str, Set[str]] = dict(
 )
 
 
-def _convert_arg_option(cur):
+def _convert_tag_arg_option(cur):
     # Convert optinos and arg into code part and description part.
     for key in ["option", "arg"]:
         for idx, elem in enumerate(cur.get(key, [])):
@@ -80,17 +81,31 @@ def _convert_arg_option(cur):
             # [$1] description
             # $1 description
             mopt = re.match(
-                r"^\s*(?P<code>(--?\w+(=|\s*)(<\w+>)?\s+)+|\[?\$\S+)\s*(?P<description>.*)$",
+                r"^\s*(?P<code>(--?\w+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+)\s*(?P<description>.*)$",
                 elem,
             )
-            if not mopt:
-                log.warning(f"invalid @{key}: {repr(elem)}")
-                cur[key][idx] = dict(code="", description=cur[key][idx])
-            else:
+            if mopt:
                 cur[key][idx] = dict(
                     code=mopt.group("code").strip(),
                     description=mopt.group("description") or "",
                 )
+            else:
+                log.warning(f"invalid @{key}: {repr(elem)}")
+                cur[key][idx] = dict(code="", description=cur[key][idx])
+
+
+def _convert_tag_set_env(cur):
+    for key in ["set", "env"]:
+        for idx, elem in enumerate(cur.get(key, [])):
+            mopt = re.match(r"^\s*(\S+)\s*(.*)$", elem)
+            if mopt:
+                cur[key][idx] = dict(
+                    code=mopt.group(1).strip(),
+                    description=mopt.group(2) or "",
+                )
+            else:
+                log.warning(f"invalid @{key}: {repr(elem)}")
+                cur[key][idx] = dict(code="", description=cur[key][idx])
 
 
 def _convert_see(cur, allkeys: Set[str]):
@@ -151,22 +166,21 @@ def parse_stream(
             m = re.search(r"^#\s@([a-z]+)\s*(.*)", line)
             if m:
                 cur_tag = m[1]
-                cur.setdefault(cur_tag, []).append(m[2] + "\n")
                 # @section and @type implies the type
                 if cur_tag in ["section", "file", "endsection"]:
                     cur["type"] = cur_tag
                     # File has no newline on the end, cleanup.
-                    if cur_tag == "file" and m[2]:
+                    if cur_tag == "file" and m[2].strip():
                         # Overwrite file name if not empty.
                         cur["file"] = m[2]
-                    if cur_tag in ["section", "endsection"]:
+                    elif cur_tag == "section":
                         # Clean up desription, it comes after.
                         cur["description"] = []
-                        # Don't keep @section or @endsection around.
-                        del cur[cur_tag]
                         # Extract name of @section <this is name>
                         cur["name"] = m[2]
                     cur_tag = None
+                else:
+                    cur.setdefault(cur_tag, []).append(m[2] + "\n")
                 continue
             # Detect shellcheck lines.
             m = re.search(r"^#\s+shellcheck\s+disable=(.*)", line)
@@ -222,7 +236,8 @@ def parse_stream(
                             "function" if m.groupdict().get("function") else "variable"
                         )
                         name = m[type]
-                        _convert_arg_option(cur)
+                        _convert_tag_arg_option(cur)
+                        _convert_tag_set_env(cur)
                         if cur or (includeregex and re.search(includeregex, name)):
                             cur.update(dict(type=type, name=name))
                         break
@@ -250,6 +265,7 @@ def parse_stream(
     # Some sanity.
     assert len(parents) != 0, f"Too many @endsection: {len(parents)}"
     assert root["type"] == "file"
+    assert isinstance(root["file"], str), f"top level file is not a string {root}"
 
     def check_node(x):
         assert isinstance(x["type"], str)

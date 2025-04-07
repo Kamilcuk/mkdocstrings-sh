@@ -1,1 +1,1 @@
-src/mkdocstrings_handlers/sh/shdocgen.py
+src/mkdocstrings_handlers/sh/_internal/shdocgen.py
