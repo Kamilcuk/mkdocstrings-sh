@@ -34,11 +34,11 @@ nav:
 #   - mkdocstrings: https://mkdocstrings.github.io/
 - Examples:
   - reference: examples/reference.md
-  - examples/script.md
-  - examples/readme.md
-  - examples/single.md
-  - examples/duplicates.md
-  - examples/all.md
+  - script: examples/script.md
+  - readme: examples/readme.md
+  - single: examples/single.md
+  - duplicates: examples/duplicates.md
+  - all: examples/all.md
 
 theme:
   name: material
