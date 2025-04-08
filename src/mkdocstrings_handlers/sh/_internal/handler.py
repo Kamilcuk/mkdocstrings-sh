@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 from mkdocs.exceptions import PluginError
 from mkdocstrings import BaseHandler, CollectionError, CollectorItem, get_logger
@@ -76,7 +76,9 @@ class ShHandler(BaseHandler):
         except Exception as error:
             raise PluginError(f"Invalid options: {error}") from error
 
-    def collect(self, identifier: str, options: ShOptions) -> CollectorItem:  # noqa: ARG002
+    def collect(
+        self, identifier: str, options: ShOptions
+    ) -> CollectorItem:  # noqa: ARG002
         """Collect data given an identifier and selection configuration."""
         # In the implementation, you either run a specialized tool in a subprocess
         # to capture its JSON output, that you load again in Python data structures,
@@ -94,7 +96,12 @@ class ShHandler(BaseHandler):
         file = identifier.split(" ", 1)[0]
         script_path = self.base_dir / file
         try:
-            root = shdocgen.parse_script(script_path)
+            root = shdocgen.parse_script(
+                script_path,
+                filename=file,
+                includeregex=options.includeregex,
+                excluderegex=options.excluderegex,
+            )
         except FileNotFoundError as error:
             raise CollectionError(f"Could not find script {script_path}") from error
         name = " ".join(identifier.split(" ", 1)[1:]) if " " in identifier else None
@@ -123,6 +130,7 @@ class ShHandler(BaseHandler):
             data=data,
             filename=Path(data["file"]).name,
             heading_level=options.heading_level,
+            source_url=options.source_url,
         )
 
     def get_aliases(self, identifier: str) -> tuple[str, ...]:

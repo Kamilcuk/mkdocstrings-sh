@@ -34,6 +34,7 @@ nav:
 #   - mkdocstrings: https://mkdocstrings.github.io/
 - Examples:
   - reference: examples/reference.md
+  - usage: examples/usage.md
   - script: examples/script.md
   - readme: examples/readme.md
   - single: examples/single.md
@@ -125,6 +126,8 @@ plugins:
 - mkdocstrings:
     default_handler: sh
     handlers:
+      sh:
+        source_url: "https://github.com/Kamilcuk/mkdocstrings-sh/blob/main/{file}#L{line}"
       python:
         inventories:
         - https://docs.python.org/3/objects.inv

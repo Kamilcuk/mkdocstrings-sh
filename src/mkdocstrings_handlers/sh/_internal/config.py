@@ -63,7 +63,9 @@ try:
     ) -> None:
         def _add_markdown_description(schema: dict[str, Any]) -> None:
             url = f"{_base_url}/{f'configuration/{group}/' if group else ''}#{parent or schema['title']}"
-            schema["markdownDescription"] = f"[DOCUMENTATION]({url})\n\n{schema['description']}"
+            schema["markdownDescription"] = (
+                f"[DOCUMENTATION]({url})\n\n{schema['description']}"
+            )
 
         return BaseField(
             *args,
@@ -72,6 +74,7 @@ try:
             json_schema_extra=_add_markdown_description,
             **kwargs,
         )
+
 except ImportError:
     from dataclasses import dataclass
 
@@ -143,6 +146,30 @@ class ShInputOptions:
         ),
     ] = ""
 
+    includeregex: Annotated[
+        str,
+        _Field(
+            group="general",
+            description="If is specified, all symbols matching this regex will be included in the documentation.",
+        ),
+    ]
+
+    source_url: Annotated[
+        str,
+        _Field(
+            group="general",
+            description="The URL to the source code repository.",
+        ),
+    ] = ""
+
+    excluderegex: Annotated[
+        str,
+        _Field(
+            group="general",
+            description="If is specified, all symbols matching this regex will be excluded from the documentation.",
+        ),
+    ] = ""
+
     @classmethod
     def coerce(cls, **data: Any) -> MutableMapping[str, Any]:
         """Coerce data."""
@@ -177,7 +204,9 @@ class ShInputConfig:
     # We want to validate options early, so we load them as `ShInputOptions`.
     options: Annotated[
         ShInputOptions,
-        _Field(description="Configuration options for collecting and rendering objects."),
+        _Field(
+            description="Configuration options for collecting and rendering objects."
+        ),
     ] = field(default_factory=ShInputOptions)
 
     @classmethod

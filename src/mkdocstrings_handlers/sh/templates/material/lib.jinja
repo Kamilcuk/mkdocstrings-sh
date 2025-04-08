@@ -44,12 +44,16 @@
 {% endmacro %}
 
 {% macro COMMON(data, id, name, role) %}
-  {% filter heading(heading_level, id=id, role=role) %}
-    <code class="doc-symbol doc-symbol-heading doc-symbol-sh-{{ data["type"] }}"></code>
-    {% if data["type"] in ["variable", "function"] %}
-      <code>{{ name }}</code>
-    {% else %}
-      {{ name }}
+  {% filter heading(heading_level, id=id, role=role,
+    toc_label='<code class="doc-symbol doc-symbol-heading doc-symbol-sh-' ~ data.type ~ '"></code> ' ~ name)
+  %}
+    <code class="doc-symbol doc-symbol-heading doc-symbol-sh-{{ data.type }}"></code>
+    {{ name }}
+    {% if source_url %}
+      <a href="{{ source_url.format(file=data.file, line=data.line) }}"
+        title="Go to source code of this symbol"
+        class="doc-symbol-sh-link">
+      </a>
     {% endif %}
   {% endfilter %}
 
@@ -61,17 +65,20 @@
   {% endfor %}
   {% for what in "example".split() %}
     {% for i in data[what] %}
-      {% if i.splitlines()[0] %}
-        {% set desc = " \"" ~ i.splitlines()[0] ~ "\"" %} 
+      {% if "\n" not in i.strip() %}
+        {% set desc = "" %}
+        {% set text = [i] %}
+      {% elif i.splitlines()[0] %}
+        {% set desc = " \"" ~ i.splitlines()[0] ~ "\"" %}
+        {% set text = i.splitlines()[1:] %}
       {% else %}
         {% set desc = "" %}
+        {% set text = i.splitlines()[1:] %}
       {% endif %}
       {{
         "!!! %s%s\n%s"
-        | format(what, desc, (i.splitlines()[1:]
-        | join("\n")
-        | indent(8, first=1)))
-        | convert_markdown(heading_level + 1, html_id=filename)
+          | format(what, desc, (text | join("\n") | indent(8, first=1)))
+          | convert_markdown(heading_level + 1, html_id=filename)
       }}
     {% endfor %}
   {% endfor %}

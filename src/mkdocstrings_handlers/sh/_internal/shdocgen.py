@@ -15,7 +15,7 @@ COMMON_TAGS: Set[str] = set(
     type
     name
     file
-    lineno
+    line
     warning
     notice
     note
@@ -71,6 +71,17 @@ KNOWN_TAGS: Dict[str, Set[str]] = dict(
     ),
 )
 
+REGEX_CACHE: Dict[str, re.Pattern] = {}
+
+
+def re_search(txt: str, line: str, opts=None) -> Optional[re.Match]:
+    """Like re.search, but cache regexes compilation. I wonder if this is actually worth it."""
+    pat = REGEX_CACHE.get(txt)
+    if not pat:
+        pat = re.compile(txt)
+        REGEX_CACHE[txt] = pat
+    return re.search(pat, line, opts)
+
 
 def _convert_tag_arg_option(cur):
     # Convert optinos and arg into code part and description part.
@@ -80,8 +91,8 @@ def _convert_tag_arg_option(cur):
             # --longarg=<var> Description
             # [$1] description
             # $1 description
-            mopt = re.match(
-                r"^\s*(?P<code>(--?\w+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+)\s*(?P<description>.*)$",
+            mopt = re_search(
+                r"^\s*(?P<code>(--?\w+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+(\s*<\w+>)?)\s*(?P<description>.*)$",
                 elem,
             )
             if mopt:
@@ -97,7 +108,7 @@ def _convert_tag_arg_option(cur):
 def _convert_tag_set_env(cur):
     for key in ["set", "env"]:
         for idx, elem in enumerate(cur.get(key, [])):
-            mopt = re.match(r"^\s*(\S+)\s*(.*)$", elem)
+            mopt = re_search(r"^\s*(\S+)\s*(.*)$", elem)
             if mopt:
                 cur[key][idx] = dict(
                     code=mopt.group(1).strip(),
@@ -110,13 +121,13 @@ def _convert_tag_set_env(cur):
 
 def _convert_see(cur, allkeys: Set[str]):
     for idx, elem in enumerate(cur.get("see", [])):
-        m = re.match(r"^(\w+)(.*)", elem)
+        m = re_search(r"^(\w+)(.*)$", elem)
         if m and m[1] in allkeys:
             # If the stuff in "see" references one of things we know about, make it an URL.
             cur["see"][idx] = f"[{m[1]}](#{m[1]}){m[2]}"
         else:
             # If "see" is an url, make it clickable automatically.
-            m = re.match(r"https?://\S+", elem)
+            m = re_search(r"^https?://\S+$", elem)
             if m:
                 cur["see"][idx] = f"[{elem}]({elem})"
 
@@ -132,6 +143,7 @@ def parse_stream(
     stream: TextIO,
     file: Optional[str] = None,
     includeregex: Optional[str] = None,
+    excluderegex: Optional[str] = None,
 ) -> dict:
     """
     Convert a shell script into a dictionary that looks like this:
@@ -163,7 +175,7 @@ def parse_stream(
         # If the line does not start with #, it is the end.
         if line.startswith("#"):
             # If the line looks like a beginning of a tag.
-            m = re.search(r"^#\s@([a-z]+)\s*(.*)", line)
+            m = re_search(r"^#\s@([a-z]+)\s*(.*)", line)
             if m:
                 cur_tag = m[1]
                 # @section and @type implies the type
@@ -173,17 +185,20 @@ def parse_stream(
                     if cur_tag == "file" and m[2].strip():
                         # Overwrite file name if not empty.
                         cur["file"] = m[2]
+                        cur["line"] = lineno
                     elif cur_tag == "section":
                         # Clean up desription, it comes after.
                         cur["description"] = []
                         # Extract name of @section <this is name>
                         cur["name"] = m[2]
+                        cur["file"] = file
+                        cur["line"] = lineno
                     cur_tag = None
                 else:
                     cur.setdefault(cur_tag, []).append(m[2] + "\n")
                 continue
             # Detect shellcheck lines.
-            m = re.search(r"^#\s+shellcheck\s+disable=(.*)", line)
+            m = re_search(r"^#\s+shellcheck\s+disable=(.*)", line)
             if m:
                 cur.setdefault("shellcheck", []).extend(
                     "SC" + x if x.isdigit() else x
@@ -192,7 +207,7 @@ def parse_stream(
                 cur_tag = None
                 continue
             # Detect SPDX lines.
-            m = re.search(r"#\s+SPDX-License-Identifier:\s+(.*)", line)
+            m = re_search(r"#\s+SPDX-License-Identifier:\s+(.*)", line)
             if m:
                 cur.setdefault("SPDX-License-Identifier", []).append(m.group(1))
                 cur_tag = None
@@ -230,7 +245,7 @@ def parse_stream(
                     r"^(|readonly\s+|declare(\s+-\w+)*\s+)(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*)=",
                 ]
                 for rgx in regexes:
-                    m = re.search(rgx, line)
+                    m = re_search(rgx, line)
                     if m:
                         type = (
                             "function" if m.groupdict().get("function") else "variable"
@@ -238,8 +253,10 @@ def parse_stream(
                         name = m[type]
                         _convert_tag_arg_option(cur)
                         _convert_tag_set_env(cur)
-                        if cur or (includeregex and re.search(includeregex, name)):
-                            cur.update(dict(type=type, name=name))
+                        if cur or (includeregex and re_search(includeregex, name)):
+                            cur.update(
+                                dict(type=type, name=name, file=file, line=lineno)
+                            )
                         break
             # If type was set, append to the result.
             if "type" in cur:
@@ -258,8 +275,9 @@ def parse_stream(
                     parents[-1]["data"].append(cur)
                     parents.append(cur)
                 elif cur["type"] in ["function", "variable"]:
-                    # It's a function or a variable - added to current section.
-                    parents[-1]["data"].append(cur)
+                    if not excluderegex or not re_search(excluderegex, cur["name"]):
+                        # It's a function or a variable - added to current section.
+                        parents[-1]["data"].append(cur)
             cur_tag = None
             cur = {}
     # Some sanity.
@@ -291,9 +309,14 @@ def parse_stream(
     return root
 
 
-def parse_script(script: Union[Path, str]):
+def parse_script(
+    script: Union[Path, str],
+    filename: Optional[str] = None,
+    includeregex: Optional[str] = None,
+    excluderegex: Optional[str] = None,
+):
     with open(script) as f:
-        return parse_stream(f, str(script))
+        return parse_stream(f, filename, includeregex, excluderegex)
 
 
 def find_name(root, name: str, type: Optional[str] = None) -> Optional[dict]:
