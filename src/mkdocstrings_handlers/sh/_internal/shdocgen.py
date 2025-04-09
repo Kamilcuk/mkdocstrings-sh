@@ -92,7 +92,7 @@ def _convert_tag_arg_option(cur):
             # [$1] description
             # $1 description
             mopt = re_search(
-                r"^\s*(?P<code>(--?\w+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+(\s*<\w+>)?)\s*(?P<description>.*)$",
+                r"^\s*(?P<code>(--?\S+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+(\s*<\w+>)?)\s*(?P<description>.*)$",
                 elem,
             )
             if mopt:
