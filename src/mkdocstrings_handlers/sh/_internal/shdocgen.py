@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import sys
 import logging
 import re
 from pathlib import Path
@@ -74,13 +75,13 @@ KNOWN_TAGS: Dict[str, Set[str]] = dict(
 REGEX_CACHE: Dict[str, re.Pattern] = {}
 
 
-def re_search(txt: str, line: str, opts=None) -> Optional[re.Match]:
+def re_search(patstr: str, txt: str, opts=re.DOTALL) -> Optional[re.Match]:
     """Like re.search, but cache regexes compilation. I wonder if this is actually worth it."""
-    pat = REGEX_CACHE.get(txt)
+    pat = REGEX_CACHE.get(patstr)
     if not pat:
-        pat = re.compile(txt)
-        REGEX_CACHE[txt] = pat
-    return re.search(pat, line, opts)
+        pat = re.compile(patstr, opts)
+        REGEX_CACHE[patstr] = pat
+    return pat.search(txt)
 
 
 def _convert_tag_arg_option(cur):
@@ -101,8 +102,8 @@ def _convert_tag_arg_option(cur):
                     description=mopt.group("description") or "",
                 )
             else:
-                log.warning(f"invalid @{key}: {repr(elem)}")
-                cur[key][idx] = dict(code="", description=cur[key][idx])
+                log.error(f"invalid @{key}: {repr(elem)}")
+                cur[key][idx] = dict(code=" ", description=cur[key][idx])
 
 
 def _convert_tag_set_env(cur):
@@ -121,13 +122,13 @@ def _convert_tag_set_env(cur):
 
 def _convert_see(cur, allkeys: Set[str]):
     for idx, elem in enumerate(cur.get("see", [])):
-        m = re_search(r"^(\w+)(.*)$", elem)
+        m = re_search(r"^(\w+)(.*?)\s*$", elem)
         if m and m[1] in allkeys:
             # If the stuff in "see" references one of things we know about, make it an URL.
             cur["see"][idx] = f"[{m[1]}](#{m[1]}){m[2]}"
         else:
             # If "see" is an url, make it clickable automatically.
-            m = re_search(r"^https?://\S+$", elem)
+            m = re_search(r"^https?://\S+\s*$", elem)
             if m:
                 cur["see"][idx] = f"[{elem}]({elem})"
 
@@ -172,10 +173,14 @@ def parse_stream(
     cur: dict = {}  # Current element.
     cur_tag: Optional[str] = None  # Last seen @tag
     for lineno, line in enumerate(stream):
+        if line and line[-1] == "\n":
+            line = line[:-1]
+        if line and line[-1] == "\r":
+            line = line[:-1]
         # If the line does not start with #, it is the end.
         if line.startswith("#"):
             # If the line looks like a beginning of a tag.
-            m = re_search(r"^#\s@([a-z]+)\s*(.*)", line)
+            m = re_search(r"^#\s@([a-z]+)\s*(.*)$", line)
             if m:
                 cur_tag = m[1]
                 # @section and @type implies the type
@@ -198,7 +203,7 @@ def parse_stream(
                     cur.setdefault(cur_tag, []).append(m[2] + "\n")
                 continue
             # Detect shellcheck lines.
-            m = re_search(r"^#\s+shellcheck\s+disable=(.*)", line)
+            m = re_search(r"^#\s+shellcheck\s+disable=(.*)$", line)
             if m:
                 cur.setdefault("shellcheck", []).extend(
                     "SC" + x if x.isdigit() else x
@@ -207,20 +212,21 @@ def parse_stream(
                 cur_tag = None
                 continue
             # Detect SPDX lines.
-            m = re_search(r"#\s+SPDX-License-Identifier:\s+(.*)", line)
+            m = re_search(r"^#\s+SPDX-License-Identifier:\s+(.*)$", line)
             if m:
                 cur.setdefault("SPDX-License-Identifier", []).append(m.group(1))
                 cur_tag = None
                 continue
             # If all stars align, append the string to the last tag element seen.
-            line = re.sub(r"#\s?", "", line)
+            line = re.sub(r"^#\s?(.*?)\n?$", r"\1", line)
             if cur and cur_tag is not None and len(cur.get(cur_tag, [])):
-                cur[cur_tag][-1] += line
+                cur[cur_tag][-1] += "\n" + line
                 continue
-            # Append free lines to description.
-            cur.setdefault("description", []).insert(
-                0, (cur["description"][0] if cur.get("description") else "") + line
-            )
+            # Append free lines to description
+            if cur.get("description"):
+                cur["description"][-1] += "\n" + line
+            else:
+                cur["description"] = [line]
             continue
         else:
             # Line does not start with #
@@ -230,19 +236,19 @@ def parse_stream(
                 regexes = [
                     # function name()
                     # function name
-                    r"^function\s+(?P<function>[a-zA-Z@_]\w+)",
+                    r"^function\s+(?P<function>[a-zA-Z@_]\w+).*$",
                     # name()
-                    r"^(?P<function>[a-zA-Z@_]\w+)\s*[(][)]",
+                    r"^(?P<function>[a-zA-Z@_]\w+)\s*[(][)].*$",
                     # : "${variable:=value}"
                     # : "${variable=value}"
                     # : ${variable:=value}
                     # : ${variable=value}
-                    r'^:\s+"?\${(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*):?=',
+                    r'^:\s+"?\${(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*):?=.*$',
                     # variable=
                     # declare variable=
                     # declare -a variable=
                     # readonly variable=
-                    r"^(|readonly\s+|declare(\s+-\w+)*\s+)(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*)=",
+                    r"^(|readonly\s+|declare(\s+-\w+)*\s+)(?P<variable>[a-zA-Z_][a-zA-Z_0-9]*)=.*$",
                 ]
                 for rgx in regexes:
                     m = re_search(rgx, line)
@@ -316,7 +322,7 @@ def parse_script(
     excluderegex: Optional[str] = None,
 ):
     with open(script) as f:
-        return parse_stream(f, filename, includeregex, excluderegex)
+        return parse_stream(f, filename or str(script), includeregex, excluderegex)
 
 
 def find_name(root, name: str, type: Optional[str] = None) -> Optional[dict]:
