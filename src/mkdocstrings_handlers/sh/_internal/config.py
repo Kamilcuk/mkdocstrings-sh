@@ -152,7 +152,7 @@ class ShInputOptions:
             group="general",
             description="If is specified, all symbols matching this regex will be included in the documentation.",
         ),
-    ]
+    ] = ""
 
     source_url: Annotated[
         str,
