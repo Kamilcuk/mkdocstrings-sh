@@ -87,13 +87,25 @@ def _convert_tag_arg_option(cur):
     # Convert optinos and arg into code part and description part.
     for key in ["option", "arg"]:
         for idx, elem in enumerate(cur.get(key, [])):
-            # -l --longarg <var> Description
-            # --longarg=<var> Description
-            # [$1] description
-            # $1 description
+            # description
             mopt = re_search(
-                r"^\s*(?P<code>(--?\S+(=\S+|\s*<\w+>)?\s+)+|\[?\$\S+(\s*<\w+>)?)\s*(?P<description>.*)$",
+                r"""
+                    ^\s*(?P<code>
+                        # --longarg=var Description
+                        --\S+=\S+|
+                        # -l --longarg <var> Description
+                        # -l --longarg [var] Description
+                        --?\S+(\s+--?\S+)*(\s*(\<\S+\>|\[\S+\]))?|
+                        # $1 Description
+                        \$\S+|
+                        # [arg] Description
+                        \[\S+\]|
+                        # <arg> Description
+                        \<\S+\>
+                    )\s*(?P<description>.*)$
+                """,
                 elem,
+                re.VERBOSE | re.DOTALL,
             )
             if mopt:
                 cur[key][idx] = dict(
