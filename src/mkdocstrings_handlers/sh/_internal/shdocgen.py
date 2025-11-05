@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import re
+import textwrap
 from pathlib import Path
 from pprint import pprint
 from typing import Any, Callable, Dict, List, Optional, Set, TextIO, Union
@@ -132,6 +133,10 @@ def _convert_tag_set_env(cur):
 
 
 def _convert_see(cur, allkeys: Set[str]):
+    """
+    If you are a name in the @see tag, autoconvert it to a hyperlink to the name.
+    allkeys - all keys in the file
+    """
     for idx, elem in enumerate(cur.get("see", [])):
         m = re_search(r"^(\w+)(.*?)\s*$", elem)
         if m and m[1] in allkeys:
@@ -142,6 +147,33 @@ def _convert_see(cur, allkeys: Set[str]):
             m = re_search(r"^https?://\S+\s*$", elem)
             if m:
                 cur["see"][idx] = f"[{elem}]({elem})"
+
+
+def _dedent_some_tags(cur):
+    """
+    @option and @arg support no newlines.
+    This is there to support formatting like:
+    # @option -x blabla
+    #            blabla
+    """
+    for key in ["option", "arg", "exit", "exitcode", "return", "example"]:
+        for idx in range(len(cur.get(key, []))):
+            if isinstance(cur[key][idx], str):
+                val = cur[key][idx]
+            elif isinstance(cur[key][idx], dict):
+                val = cur[key][idx]["description"]
+            else:
+                assert False
+            if "\n" in val:
+                val = (
+                    val.splitlines()[0].strip()
+                    + "\n"
+                    + textwrap.dedent("\n".join(val.splitlines()[1:]))
+                )
+            if isinstance(cur[key][idx], str):
+                cur[key][idx] = val
+            elif isinstance(cur[key][idx], dict):
+                cur[key][idx]["description"] = val
 
 
 def traverse(root: dict, cb: Callable[[dict], Any]):
@@ -314,6 +346,7 @@ def parse_stream(
     allnames = set()
     traverse(root, lambda x: x.get("name") and allnames.add(x["name"]))
     traverse(root, lambda x: _convert_see(x, allnames))
+    traverse(root, lambda x: _dedent_some_tags(x))
     # Warn about unknown keys.
     traverse(
         root,
