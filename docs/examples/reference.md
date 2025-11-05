@@ -14,8 +14,8 @@ There are 5 types of blocks:
 - Block containing `@file` describes the current file.
 - Block containing `@section` starts a new section.
 - Block containing `@endsection` closes current section.
-- Block immidately followed by a function declaration becomes documentation for that function.
-- Block immidately followed by a variable assignment becomes documentation for that function.
+- Block immediately followed by a function declaration becomes documentation for that function.
+- Block immediately followed by a variable assignment becomes documentation for that function.
 
 There is no actual difference between how the blocks are handled. You can put `@arg` tag in `@file` or put `@author` in variable description.
 
@@ -37,7 +37,7 @@ Consecutive `@section` blocks just start a new section. `@endsection` is not nee
 
 ## @endsection
 
-The end of the section. This cases the sectin to terminate.
+The end of the section. This cases the section to terminate.
 
 ## @author
 
